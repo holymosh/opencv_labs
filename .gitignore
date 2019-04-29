@@ -380,3 +380,5 @@ popov_d_d/skeletonization/ALL_BUILD.vcxproj.filters
 popov_d_d/skeletonization/ALL_BUILD.vcxproj
 popov_d_d/skeletonization/cv_hello_word.vcxproj.filters
 popov_d_d/skeletonization/cv_hello_word.vcxproj
+popov_d_d/skeletonization/ConsoleApplication13/pch.h
+popov_d_d/skeletonization/ConsoleApplication13/pch.cpp
