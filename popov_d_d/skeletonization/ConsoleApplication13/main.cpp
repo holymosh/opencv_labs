@@ -1,85 +1,116 @@
 ﻿#include "pch.h"
-#include <Windows.h>
-#include <opencv2\highgui\highgui.hpp>
-#include <opencv/cv.h>
-#include "skeletonization.h"
-#include "opencv2/imgproc.hpp"
-using namespace cv;
-using namespace std;
+#include <opencv2/opencv.hpp>
 
-int radius = 0;
-int radius_max = 10;
-
-int iterations = 6;
-int iterations_max = 10;
-
-int block = 11;
-int block_max = 100;
-
-int pixels = 8;
-int pixels_max = 55;
-
-int filter_height = 10, filter_height_max = 200, filter_width = 10, filter_width_max = 200, sigma1 = 0, sigma1_max = 500
-    , sigma2 = 0, sigma2_max = 500;
-
-auto main(int argc, char** argv) -> int
+void thinningIteration(cv::Mat& img, int iter)
 {
-	IplImage* inputImage;
+	CV_Assert(img.channels() == 1);
+	CV_Assert(img.depth() != sizeof(uchar));
+	CV_Assert(img.rows > 3 && img.cols > 3);
 
+	cv::Mat marker = cv::Mat::zeros(img.size(), CV_8UC1);
 
-	const char* filename = argc == 2
-		                       ? argv[1]
-		                       : "‪image.jpg";
-	inputImage = cvLoadImage(filename, CV_LOAD_IMAGE_GRAYSCALE);
-	IplImage* inputImage1;
-	inputImage1 = cvLoadImage(filename, CV_LOAD_IMAGE_UNCHANGED);
-	printf("[i] image: %s\n", filename);
-	if (!inputImage)
-	{
-		printf("%s",filename, "image not found\n");
-		exit(0);
+	int nRows = img.rows;
+	int nCols = img.cols;
+
+	if (img.isContinuous()) {
+		nCols *= nRows;
+		nRows = 1;
 	}
-	CvSize size(inputImage->width, inputImage->height);
-	IplImage* improvedImage = cvCreateImage(size, IPL_DEPTH_8U, 3);
 
-	improveImageQuality(inputImage1, improvedImage);
-	cvShowImage("improved", improvedImage);
-	resizeWindow("improved", 400, 400);
-	IplImage* sum = cvCloneImage(improvedImage);
-	IplImage* dst = cvCreateImage(CvSize(improvedImage->width, improvedImage->height), IPL_DEPTH_8U, 1);
+	int x, y;
+	uchar *pAbove;
+	uchar *pCurr;
+	uchar *pBelow;
+	uchar *nw, *no, *ne;    
+	uchar *we, *me, *ea;
+	uchar *sw, *so, *se;    
 
-	IplConvKernel* Kern =
-		cvCreateStructuringElementEx(radius * 2 + 1, radius * 2 + 1, radius, radius, CV_SHAPE_ELLIPSE);
-	cvDilate(improvedImage, sum, Kern, iterations);
-	cvErode(sum, sum, Kern, iterations);
-	cvReleaseStructuringElement(&Kern);
-	IplImage* smoothImage = cvCloneImage(sum);
-	cvSmooth(sum, smoothImage, CV_BILATERAL, filter_height, filter_width, sigma1, sigma2);
-	cvShowImage("image", smoothImage);
-	resizeWindow("image", 400, 400);
-	IplImage* gray = cvCreateImage(CvSize(improvedImage->width, improvedImage->height), IPL_DEPTH_8U, 1);
-	cvCvtColor(smoothImage, gray, CV_RGB2GRAY);
-	IplImage* bin = cvCreateImage(cvSize(inputImage->width, inputImage->height), IPL_DEPTH_8U, 1);
-	cvAdaptiveThreshold(gray, bin, 255, CV_ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, block, pixels);
-	cvShowImage("skelet", bin);
-	resizeWindow("skelet", 400, 400);
-	cvCanny(gray, dst, 200, 250, 3);
+	uchar *pDst;
 
-	CvMemStorage* storage = cvCreateMemStorage(0);
-	CvSeq* contours = 0;
-	IplImage* imageInRange = cvCreateImage(cvSize(inputImage->width, inputImage->height), IPL_DEPTH_8U, 1);
-	IplImage* dst1 = cvCloneImage(improvedImage);
-	for (CvSeq* seq0 = contours; seq0 != 0; seq0 = seq0->h_next)
-	{
-		cvDrawContours(dst1, seq0, CV_RGB(0, 0, 250), CV_RGB(255, 216, 0), 0, 1, 8);
+	pAbove = NULL;
+	pCurr = img.ptr<uchar>(0);
+	pBelow = img.ptr<uchar>(1);
+
+	for (y = 1; y < img.rows - 1; ++y) {
+		pAbove = pCurr;
+		pCurr = pBelow;
+		pBelow = img.ptr<uchar>(y + 1);
+
+		pDst = marker.ptr<uchar>(y);
+
+		no = &(pAbove[0]);
+		ne = &(pAbove[1]);
+		me = &(pCurr[0]);
+		ea = &(pCurr[1]);
+		so = &(pBelow[0]);
+		se = &(pBelow[1]);
+
+		for (x = 1; x < img.cols - 1; ++x) {
+			nw = no;
+			no = ne;
+			ne = &(pAbove[x + 1]);
+			we = me;
+			me = ea;
+			ea = &(pCurr[x + 1]);
+			sw = so;
+			so = se;
+			se = &(pBelow[x + 1]);
+
+			int A = (*no == 0 && *ne == 1) + (*ne == 0 && *ea == 1) +
+				(*ea == 0 && *se == 1) + (*se == 0 && *so == 1) +
+				(*so == 0 && *sw == 1) + (*sw == 0 && *we == 1) +
+				(*we == 0 && *nw == 1) + (*nw == 0 && *no == 1);
+			int B = *no + *ne + *ea + *se + *so + *sw + *we + *nw;
+			int m1 = iter == 0 ? (*no * *ea * *so) : (*no * *ea * *we);
+			int m2 = iter == 0 ? (*ea * *so * *we) : (*no * *so * *we);
+
+			if (A == 1 && (B >= 2 && B <= 6) && m1 == 0 && m2 == 0)
+				pDst[x] = 1;
+		}
 	}
-	cvWaitKey();
-	cvReleaseImage(&imageInRange);
-	cvReleaseImage(&dst1);
 
-	cvReleaseImage(&gray);
-	cvReleaseImage(&bin);
-	cvReleaseImage(&smoothImage);
-	printf("All done\n");
+	img &= ~marker;
+}
+
+
+void thinning(const cv::Mat& src, cv::Mat& dst)
+{
+	dst = src.clone();
+	dst /= 255;
+
+	cv::Mat prev = cv::Mat::zeros(dst.size(), CV_8UC1);
+	cv::Mat diff;
+
+	do {
+		thinningIteration(dst, 0);
+		thinningIteration(dst, 1);
+		cv::absdiff(dst, prev, diff);
+		dst.copyTo(prev);
+	} while (cv::countNonZero(diff) > 0);
+
+	dst *= 255;
+}
+
+
+int main(int argc, char** argv)
+{
+	if (argc != 2)
+	{
+		std::cout << "Need 2 arguments" << std::endl;
+		return -1;
+	}
+	cv::Mat src = cv::imread(argv[1]);
+	if (!src.data)
+		return -1;
+
+	cv::Mat bw;
+	cv::cvtColor(src, bw, CV_BGR2GRAY);
+	cv::threshold(bw, bw, 10, 255, CV_THRESH_BINARY);
+
+	thinning(bw, bw);
+
+	cv::imshow("src", src);
+	cv::imshow("dst", bw);
+	cv::waitKey();
 	return 0;
 }

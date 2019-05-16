@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.0.0)
 project (skeletonization)
 set (CMAKE_CXX_STANDARD 11)
 
-set (SOURCE main.cpp skeletonization.h)
+set (SOURCE main.cpp)
 set (OUTDIR out)
 
 set(RUNTIME_OUTPUT_DIRECTORY ${OUTDIR}/${CMAKE_BUILD_TYPE})
