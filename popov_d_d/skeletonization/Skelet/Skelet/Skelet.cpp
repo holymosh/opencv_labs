@@ -1,5 +1,4 @@
-﻿#include "pch.h"
-#include <opencv2/opencv.hpp>
+﻿#include <opencv2/opencv.hpp>
 
 void thinningIteration(cv::Mat& img, int iter)
 {
@@ -18,14 +17,14 @@ void thinningIteration(cv::Mat& img, int iter)
 	}
 
 	int x, y;
-	uchar *pAbove;
-	uchar *pCurr;
-	uchar *pBelow;
-	uchar *nw, *no, *ne;    
-	uchar *we, *me, *ea;
-	uchar *sw, *so, *se;    
+	uchar* pAbove;
+	uchar* pCurr;
+	uchar* pBelow;
+	uchar* nw, * no, * ne;
+	uchar* we, * me, * ea;
+	uchar* sw, * so, * se;
 
-	uchar *pDst;
+	uchar* pDst;
 
 	pAbove = NULL;
 	pCurr = img.ptr<uchar>(0);
@@ -73,19 +72,27 @@ void thinningIteration(cv::Mat& img, int iter)
 }
 
 
-void thinning(const cv::Mat& src, cv::Mat& dst)
+void thinning(const cv::Mat & src, cv::Mat & dst)
 {
 	dst = src.clone();
 	dst /= 255;
 
 	cv::Mat prev = cv::Mat::zeros(dst.size(), CV_8UC1);
 	cv::Mat diff;
-
+	cv::Mat show;
+	int i(0);
 	do {
 		thinningIteration(dst, 0);
 		thinningIteration(dst, 1);
+		i++;
 		cv::absdiff(dst, prev, diff);
 		dst.copyTo(prev);
+		prev.copyTo(show);
+		if ((i % 7) == 0)
+		{
+			show *= 255;
+			cv::imshow(std::to_string(i), show);
+		}
 	} while (cv::countNonZero(diff) > 0);
 
 	dst *= 255;
